@@ -1086,6 +1086,11 @@
     }
   },
   "task": {
+    "quickCreate": {
+      "repeat": "Repeat",
+      "noRepeat": "Does not repeat",
+      "keyboardHint": "Enter to add · Shift+Enter for multiple tasks"
+    },
     "new": "Create a task",
     "createSuccess": "The task was successfully created.",
     "bulkCreateUnexpectedResponse": "The server returned an unexpected number of created tasks.",

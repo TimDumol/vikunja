@@ -46,6 +46,38 @@
 				</XButton>
 			</p>
 		</div>
+		<div class="quick-task-options">
+			<label :for="`${textareaId}-due`">{{ $t('task.attributes.dueDate') }}</label>
+			<input
+				:id="`${textareaId}-due`"
+				v-model="dueDate"
+				class="input"
+				type="date"
+				:disabled="loading"
+			>
+			<label :for="`${textareaId}-repeat`">{{ $t('task.quickCreate.repeat') }}</label>
+			<div class="select">
+				<select
+					:id="`${textareaId}-repeat`"
+					v-model="repeat"
+					:disabled="loading"
+				>
+					<option value="none">
+						{{ $t('task.quickCreate.noRepeat') }}
+					</option>
+					<option value="daily">
+						{{ $t('task.repeat.everyDay') }}
+					</option>
+					<option value="weekly">
+						{{ $t('task.repeat.everyWeek') }}
+					</option>
+					<option value="monthly">
+						{{ $t('task.repeat.monthly') }}
+					</option>
+				</select>
+			</div>
+			<span class="help">{{ $t('task.quickCreate.keyboardHint') }}</span>
+		</div>
 		<Expandable :open="errorMessage !== ''">
 			<p
 				v-if="errorMessage !== ''"
@@ -93,6 +125,8 @@ const emit = defineEmits<{
 const textareaId = computed(() => `task-add-textarea-${Math.random().toString(36).substr(2, 9)}`)
 
 const newTaskTitle = ref('')
+const dueDate = ref('')
+const repeat = ref('none')
 const {textarea: newTaskInput} = useAutoHeightTextarea(newTaskTitle)
 
 const {t} = useI18n({useScope: 'global'})
@@ -135,6 +169,14 @@ async function addTask() {
 
 	const context = captureClientRequestContext()
 	const taskTitleBackup = newTaskTitle.value
+	const schedule = {
+		due_date: dueDate.value ? new Date(`${dueDate.value}T09:00:00`).toISOString() : undefined,
+		repeat_after: repeat.value === 'daily' ? 86400 : repeat.value === 'weekly' ? 604800 : repeat.value === 'monthly' ? 0 : undefined,
+		repeat_mode: repeat.value === 'monthly' ? 1 : repeat.value === 'none' ? undefined : 0,
+	}
+	if (repeat.value !== 'none' && !schedule.due_date) {
+		schedule.due_date = new Date().toISOString()
+	}
 	// Keyed by the title the task had before quick add magic parsed it. A Map,
 	// because a user-entered `__proto__` would corrupt plain-object lookups.
 	const createdTasks = new Map<ITask['title'], ITask>()
@@ -163,6 +205,7 @@ async function addTask() {
 			.filter(({title}) => title !== '')
 			.map(async ({title, project}) => ({
 				title,
+				...schedule,
 				project_id: (project !== null
 					? await findProjectId({project, projectId: 0})
 					: currentProjectId) || authStore.settings.default_project_id || 0,
@@ -230,6 +273,12 @@ async function addTask() {
 			emit('tasksAdded', allCreated)
 		}
 
+		if (bulk.error === null) {
+			dueDate.value = ''
+			repeat.value = 'none'
+			focusTaskInput()
+		}
+
 		if (bulk.error !== null) {
 			newTaskTitle.value = taskTitleBackup
 			error(bulk.error)
@@ -273,6 +322,18 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.quick-task-options {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .5rem;
+	margin-block-start: .5rem;
+
+	.input {
+		inline-size: auto;
+	}
+}
+
 .task-add,
 	// overwrite bulma styles
 .task-add .add-task__field {

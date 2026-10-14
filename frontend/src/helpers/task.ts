@@ -164,17 +164,17 @@ export function buildQuickAddTask(
 		? cleanupItemText(parsed.text, assignees.map(user => user.match), prefixes.assignee)
 		: parsed.text
 	// Without a due date, a repeating task never becomes due.
-	const dueDate = (parsed.date ?? (parsed.repeats ? getDateWithTime(new Date()) : null))?.toISOString()
+	const dueDate = input.due_date ?? (parsed.date ?? (parsed.repeats ? getDateWithTime(new Date()) : null))?.toISOString()
 	return createTaskDraft({
 		...input,
 		title,
 		due_date: dueDate,
 		priority: parsed.priority ?? 0,
 		assignees: assignees.map(({match: _match, ...user}) => user),
-		repeat_after: repeatAfterToSeconds(parsed.repeats),
-		repeat_mode: parsed.repeats?.type === REPEAT_TYPES.Months && parsed.repeats.amount === 1
+		repeat_after: input.repeat_after ?? repeatAfterToSeconds(parsed.repeats),
+		repeat_mode: input.repeat_mode ?? (parsed.repeats?.type === REPEAT_TYPES.Months && parsed.repeats.amount === 1
 			? TASK_REPEAT_MODES.REPEAT_MODE_MONTH
-			: TASK_REPEAT_MODES.REPEAT_MODE_DEFAULT,
+			: TASK_REPEAT_MODES.REPEAT_MODE_DEFAULT),
 		reminders: buildDefaultRemindersForQuickAdd(defaults, dueDate),
 	})
 }

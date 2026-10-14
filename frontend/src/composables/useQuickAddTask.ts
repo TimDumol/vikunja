@@ -153,7 +153,7 @@ export function useQuickAddTask() {
 		return task
 	}
 
-	async function createNewTasksBulk(entries: {title: string, project_id: number}[]) {
+	async function createNewTasksBulk(entries: (Partial<Task> & {title: string, project_id: number})[]) {
 		const context = captureClientRequestContext()
 		const built = await Promise.all(entries.map(entry => build(entry, context)))
 		assertClientRequestContext(context)

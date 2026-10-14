@@ -33,6 +33,30 @@ test.describe('Project View List', () => {
 		await expect(page.locator('.tasks')).toContainText(newTaskTitle)
 	})
 
+	for (const [repeat, seconds, mode] of [['daily', 86400, 0], ['weekly', 604800, 0], ['monthly', 0, 1]] as const) {
+		test(`Should quick-create a ${repeat} task with a due date`, async ({authenticatedPage: page, apiContext, userToken}) => {
+			await createProjects(1)
+			await page.goto('/projects/1/1')
+			await page.locator('.task-add textarea').fill('Quick scheduled task')
+			await page.locator('.task-add input[type="date"]').fill('2027-01-15')
+			await page.locator('.quick-task-options select').selectOption(repeat)
+			await page.locator('.task-add textarea').press('Enter')
+			await expect(page.locator('.tasks')).toContainText('Quick scheduled task')
+			await expect(page.locator('.task-add textarea')).toBeFocused()
+			await expect(page.locator('.quick-task-options select')).toHaveValue('none')
+			await page.reload()
+			await page.locator('.tasks .tasktext').filter({hasText: 'Quick scheduled task'}).click()
+			await expect(page).toHaveURL(/tasks\/\d+/)
+			const id = page.url().match(/tasks\/(\d+)/)![1]
+			const response = await apiContext.get(`/api/v2/tasks/${id}`, {headers: {Authorization: `Bearer ${userToken}`}})
+			expect(response.ok()).toBeTruthy()
+			const task = await response.json()
+			expect(task.repeat_after).toBe(seconds)
+			expect(task.repeat_mode).toBe(mode)
+			expect(new Date(task.due_date).getTime()).toBe(new Date('2027-01-15T09:00:00').getTime())
+		})
+	}
+
 	test('Should create multiple tasks from multiline input and keep their order', async ({authenticatedPage: page}) => {
 		await createProjects(1)
 		await BucketFactory.create(2, {
