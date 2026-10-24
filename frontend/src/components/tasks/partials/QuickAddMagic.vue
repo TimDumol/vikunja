@@ -62,6 +62,9 @@
 					<p>
 						{{ $t('task.quickAddMagic.project3') }}
 						{{ $t('task.quickAddMagic.project4', {prefix: prefixes.project}) }}
+						<span v-if="mode === PrefixMode.Default">
+							{{ $t('task.quickAddMagic.projectAlias') }}
+						</span>
 					</p>
 
 					<h3>{{ $t('task.quickAddMagic.dateAndTime') }}</h3>
@@ -82,6 +85,7 @@
 						<li>End of month</li>
 						<li>In 5 days [minutes/hours/weeks/months/years]</li>
 						<li>In two weeks, in a month</li>
+						<li>This Friday</li>
 						<li>Tuesday ({{ $t('task.quickAddMagic.dateWeekday') }})</li>
 						<li>02/17/2021</li>
 						<li>2021-02-17</li>
@@ -99,6 +103,7 @@
 						<li>Every day</li>
 						<li>Every 3 days</li>
 						<li>Every week</li>
+						<li>Every Friday</li>
 						<li>Every 2 weeks</li>
 						<li>Every month</li>
 					</ul>
@@ -113,7 +118,7 @@ import {ref, computed} from 'vue'
 
 import BaseButton from '@/components/base/BaseButton.vue'
 
-import {PREFIXES} from '@/modules/quickAddMagic'
+import {PREFIXES, PrefixMode} from '@/modules/quickAddMagic'
 import {useAuthStore} from '@/stores/auth'
 import {useQuickAddMode} from '@/composables/useQuickAddMode'
 

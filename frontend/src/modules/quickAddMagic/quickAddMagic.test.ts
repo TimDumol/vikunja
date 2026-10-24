@@ -93,6 +93,51 @@ describe('Parse Task Text', () => {
 		expect(result.date?.getMinutes()).toBe(0)
 	})
 
+	it.each(['#Work', '#"Work projects"', "#'Work projects'"])('supports project alias %s in default mode', project => {
+		const result = parseTaskText(`Review tomorrow ${project}`)
+		expect(result.project).toBe(project.includes('projects') ? 'Work projects' : 'Work')
+		expect(result.text).toBe('Review')
+		expect(result.date).not.toBeNull()
+	})
+
+	it.each(['todayish', 'tomorrowland', 'next weekish', 'within 2 days', 'in 2 daysaway'])('preserves non-date text %s', text => {
+		const result = parseTaskText(`Review ${text}`)
+		expect(result.date).toBeNull()
+		expect(result.text).toBe(`Review ${text}`)
+	})
+
+	it.each([
+		['in two days', new Date(2026, 9, 16, 9, 15)],
+		['IN AN HOUR', new Date(2026, 9, 14, 10, 15)],
+		['in 30 minutes', new Date(2026, 9, 14, 9, 45)],
+		['this Friday', new Date(2026, 9, 16, 9, 15)],
+	])('recognizes %s without changing the reference date', (expression, expected) => {
+		const now = new Date(2026, 9, 14, 9, 15)
+		const result = parseTaskText(`Review ${expression}`, PrefixMode.Default, now)
+		expect(result.date).toEqual(expected)
+		expect(result.text).toBe('Review')
+		expect(now).toEqual(new Date(2026, 9, 14, 9, 15))
+	})
+
+	it.each(['every Friday', 'each fri'])('recognizes recurring weekday %s', expression => {
+		const result = parseTaskText(`Review ${expression} #Work`, PrefixMode.Default, new Date(2026, 9, 14, 9, 15))
+		expect(result.date?.getDate()).toBe(16)
+		expect(result.repeats).toEqual({
+			amount: 1,
+			type: 'weeks',
+		})
+		expect(result.project).toBe('Work')
+		expect(result.text).toBe('Review')
+	})
+
+	it('recognizes uppercase interval repeats', () => {
+		const result = parseTaskText('Review EVERY TWO WEEKS')
+		expect(result.repeats).toEqual({
+			amount: 2,
+			type: 'weeks',
+		})
+	})
+
 	it('should return text with no intents as is', () => {
 		expect(parseTaskText('Lorem Ipsum').text).toBe('Lorem Ipsum')
 	})

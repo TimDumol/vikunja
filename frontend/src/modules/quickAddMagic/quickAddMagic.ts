@@ -1,3 +1,5 @@
+import {REPEAT_TYPES} from '@/types/IRepeatAfter'
+
 import {parseDate} from './dateParser'
 import {PREFIXES, PrefixMode} from './prefixes'
 import {getItemsFromPrefix, getLabelsFromPrefix, getProjectFromPrefix} from './prefixParser'
@@ -40,8 +42,12 @@ export const parseTaskText = (text: string, prefixesMode: PrefixMode = PrefixMod
 	result.labels = getLabelsFromPrefix(text, prefixesMode) ?? []
 	result.text = cleanupItemText(result.text, result.labels, prefixes.label)
 
-	result.project = getProjectFromPrefix(result.text, prefixesMode)
-	result.text = result.project !== null ? cleanupItemText(result.text, [result.project], prefixes.project) : result.text
+	const projectPrefix = prefixesMode === PrefixMode.Default
+		&& getItemsFromPrefix(result.text, '#').length > 0 ? '#' : prefixes.project
+	result.project = projectPrefix === '#'
+		? getItemsFromPrefix(result.text, '#')[0] ?? null
+		: getProjectFromPrefix(result.text, prefixesMode)
+	result.text = result.project !== null ? cleanupItemText(result.text, [result.project], projectPrefix) : result.text
 
 	result.priority = getPriority(result.text, prefixes.priority)
 	result.text = result.priority !== null ? cleanupItemText(result.text, [String(result.priority)], prefixes.priority) : result.text
@@ -52,9 +58,23 @@ export const parseTaskText = (text: string, prefixesMode: PrefixMode = PrefixMod
 	result.text = textWithoutMatched
 	result.repeats = repeats
 
+	if (result.repeats === null) {
+		const weekdayRepeat = /\b(?:every|each) (monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat|sunday|sun)\b/i.exec(result.text)
+		if (weekdayRepeat !== null) {
+			result.text = result.text.replace(weekdayRepeat[0], weekdayRepeat[1])
+			result.repeats = {
+				amount: 1,
+				type: REPEAT_TYPES.Weeks,
+			}
+		}
+	}
+
 	const {newText, date} = parseDate(result.text, now)
 	result.text = newText
 	result.date = date
 
-	return cleanupResult(result, prefixes)
+	return cleanupResult(result, {
+		...prefixes,
+		project: projectPrefix,
+	})
 }

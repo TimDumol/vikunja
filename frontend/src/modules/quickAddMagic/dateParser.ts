@@ -47,7 +47,7 @@ function matchDateAtBoundary(text: string, pattern: string): RegExpExecArray | n
 }
 
 function matchesDateExpr(text: string, dateExpr: string): boolean {
-	return text.match(new RegExp('(^| )' + dateExpr, 'gi')) !== null
+	return text.match(new RegExp('(^| )' + dateExpr + '\\b', 'gi')) !== null
 }
 
 export const parseDate = (text: string, now: Date = new Date()): dateParseResult => {
@@ -285,7 +285,7 @@ export const getDateFromTextIn = (text: string, now: Date = new Date()) => {
 }
 
 const getDateFromWeekday = (text: string, date: Date = new Date()): dateFoundResult => {
-	const matcher = /(^| )(next )?(monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat|sunday|sun)($| )/g
+	const matcher = /(^| )((?:next|this) )?(monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat|sunday|sun)($| )/g
 	const results: string[] | null = matcher.exec(text.toLowerCase()) // The i modifier does not seem to work.
 	if (results === null) {
 		return {
@@ -294,6 +294,7 @@ const getDateFromWeekday = (text: string, date: Date = new Date()): dateFoundRes
 		}
 	}
 
+	date = new Date(date)
 	const currentDay: number = date.getDay()
 	let day: number
 

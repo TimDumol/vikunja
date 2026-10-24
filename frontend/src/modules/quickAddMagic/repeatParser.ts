@@ -15,7 +15,7 @@ export const getRepeats = (text: string): repeatParsedResult => {
 	let amount = results[5] ? parseAmount(results[5].trim()) : 1
 	let type: IRepeatType = REPEAT_TYPES.Hours
 
-	switch (results[2]) {
+	switch (results[2].toLowerCase()) {
 		case 'biennially':
 			type = REPEAT_TYPES.Years
 			amount = 2
@@ -42,7 +42,7 @@ export const getRepeats = (text: string): repeatParsedResult => {
 			type = REPEAT_TYPES.Weeks
 			break
 		default:
-			switch (results[7]) {
+			switch (results[7]?.toLowerCase()) {
 				case 'hour':
 				case 'hours':
 					type = REPEAT_TYPES.Hours

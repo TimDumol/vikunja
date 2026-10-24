@@ -1355,6 +1355,7 @@
       "priority2": "The higher the number, the higher the priority.",
       "assignees": "To directly assign the task to a user, add their username prefixed with {prefix} to the task.",
       "project1": "To set a project for the task to appear in, enter its name prefixed with {prefix}.",
+      "projectAlias": "You can also use #project or #\"Project with spaces\".",
       "project2": "This will return an error if the project does not exist.",
       "project3": "To use spaces, simply add a \" or ' around the project name.",
       "project4": "For example: {prefix}\"Project with spaces\".",
