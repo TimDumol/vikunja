@@ -1,0 +1,34 @@
+services:
+  vikunja:
+    image: {{ vikunja_image }}
+    restart: unless-stopped
+    user: "1000:1000"
+    mem_limit: 384m
+    cpus: 0.75
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      VIKUNJA_DATABASE_TYPE: sqlite
+      VIKUNJA_DATABASE_PATH: /db/vikunja.db
+    volumes:
+      - ./config.yml:/app/vikunja/config.yml:ro
+      - ./db:/db
+      - ./files:/app/vikunja/files
+    networks:
+      caddy-edge:
+        aliases:
+          - vulcan-vikunja
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  caddy-edge:
+    external: true

@@ -1,0 +1,219 @@
+---
+- name: Deploy Vikunja on Vulcan with Pocket ID
+  hosts: vikunja
+  become: true
+  vars:
+    vikunja_domain: vulcan.timdumol.com
+    vikunja_dir: /opt/vikunja
+    pocket_id_url: https://auth.aries.timdumol.com
+    pocket_id_client: vikunja-vulcan
+    pocket_id_api_key_file: /home/timdumol/devel/prestosupuesto/.pocket-id-api-key
+    pocket_id_headers:
+      X-API-KEY: "{{ lookup('ansible.builtin.file', pocket_id_api_key_file) | trim }}"
+    pocket_id_client_config:
+      name: Vikunja Vulcan
+      description: Private task workspace on Vulcan
+      callbackURLs: ["https://{{ vikunja_domain }}/auth/openid/pocketid"]
+      logoutCallbackURLs: ["https://{{ vikunja_domain }}/"]
+      launchURL: "https://{{ vikunja_domain }}/"
+      isPublic: false
+      pkceEnabled: false
+      requiresReauthentication: false
+      requiresPushedAuthorizationRequests: false
+      skipConsent: false
+      credentials: {}
+      isGroupRestricted: false
+  tasks:
+    - name: Require an explicitly selected deployment image
+      ansible.builtin.assert:
+        that:
+          - vikunja_image is defined
+          - (vikunja_image | default('') | length) > 0
+        fail_msg: Pass -e vikunja_image=<verified-image-tag> to avoid restoring an outdated stock image.
+
+    - name: Measure free deployment disk space
+      ansible.builtin.command: df --output=avail -BM /opt
+      register: disk_capacity
+      changed_when: false
+
+    - name: Measure available host memory
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - "print(next(int(line.split()[1]) // 1024 for line in open('/proc/meminfo') if line.startswith('MemAvailable:')))"
+      register: available_memory
+      changed_when: false
+
+    - name: Require sufficient memory and disk headroom
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.memtotal_mb >= 1024
+          - (available_memory.stdout | int) >= 512
+          - (disk_capacity.stdout_lines[-1] | trim | regex_replace('M$', '') | int) >= 2048
+        fail_msg: Insufficient host resources; require 1 GiB total RAM, 512 MiB available and 2 GiB free disk.
+
+    - name: Report host resource headroom
+      ansible.builtin.debug:
+        msg: "RAM {{ ansible_facts.memtotal_mb }} MiB; available {{ (available_memory.stdout | int) }} MiB; disk {{ disk_capacity.stdout_lines[-1] | trim }}; swap {{ ansible_facts.swaptotal_mb }} MiB. Vikunja is capped at 384 MiB."
+
+    - name: Verify Docker Compose and shared Caddy infrastructure
+      ansible.builtin.command:
+        argv: "{{ item }}"
+      loop:
+        - [docker, compose, version]
+        - [docker, inspect, app-caddy-1]
+        - [docker, network, inspect, caddy-edge]
+      changed_when: false
+      no_log: true
+
+    - name: Create persistent deployment directories
+      ansible.builtin.file:
+        path: "{{ vikunja_dir }}/{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.owner }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - {path: '', owner: 'root', mode: '0755'}
+        - {path: db, owner: '1000', mode: '0700'}
+        - {path: files, owner: '1000', mode: '0700'}
+        - {path: backups, owner: 'root', mode: '0700'}
+
+    - name: Generate persistent service and OIDC secrets once
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - "import json,secrets,os; p='{{ vikunja_dir }}/secrets.json'; fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600); f=os.fdopen(fd,'w'); json.dump({'service':secrets.token_hex(32),'oidc':secrets.token_hex(32)},f); f.close()"
+        creates: "{{ vikunja_dir }}/secrets.json"
+      no_log: true
+
+    - name: Read persistent secrets
+      ansible.builtin.slurp:
+        src: "{{ vikunja_dir }}/secrets.json"
+      register: stored_secrets
+      no_log: true
+
+    - name: Load persistent secrets
+      ansible.builtin.set_fact:
+        vikunja_secrets: "{{ stored_secrets.content | b64decode | from_json }}"
+      no_log: true
+
+    - name: Inspect dedicated Pocket ID client
+      ansible.builtin.uri:
+        url: "{{ pocket_id_url }}/api/oidc/clients/{{ pocket_id_client }}"
+        headers: "{{ pocket_id_headers }}"
+        status_code: [200, 404]
+      register: pocket_client
+      no_log: true
+
+    - name: Create dedicated confidential Pocket ID client
+      ansible.builtin.uri:
+        url: "{{ pocket_id_url }}/api/oidc/clients"
+        method: POST
+        headers: "{{ pocket_id_headers }}"
+        body_format: json
+        body: "{{ pocket_id_client_config | combine({'id': pocket_id_client}) }}"
+        status_code: 201
+      when: pocket_client.status == 404
+      no_log: true
+
+    - name: Reconcile dedicated Pocket ID client configuration
+      ansible.builtin.uri:
+        url: "{{ pocket_id_url }}/api/oidc/clients/{{ pocket_id_client }}"
+        method: PUT
+        headers: "{{ pocket_id_headers }}"
+        body_format: json
+        body: "{{ pocket_id_client_config }}"
+      when: pocket_client.status == 200 and (pocket_client.json.callbackURLs != pocket_id_client_config.callbackURLs or pocket_client.json.isPublic or pocket_client.json.pkceEnabled)
+      no_log: true
+
+    - name: Inspect OIDC secret registration marker
+      ansible.builtin.stat:
+        path: "{{ vikunja_dir }}/.oidc-secret-registered"
+      register: secret_marker
+
+    - name: Register persistent confidential client secret
+      ansible.builtin.uri:
+        url: "{{ pocket_id_url }}/api/oidc/clients/{{ pocket_id_client }}/secret"
+        method: POST
+        headers: "{{ pocket_id_headers }}"
+        body_format: json
+        body:
+          secret: "{{ vikunja_secrets.oidc }}"
+      when: pocket_client.status == 404 or not secret_marker.stat.exists
+      no_log: true
+
+    - name: Record successful OIDC secret registration
+      ansible.builtin.copy:
+        content: "{{ pocket_id_client }}\n"
+        dest: "{{ vikunja_dir }}/.oidc-secret-registered"
+        mode: '0600'
+
+    - name: Install Vikunja configuration
+      ansible.builtin.template:
+        src: templates/config.yml.j2
+        dest: "{{ vikunja_dir }}/config.yml"
+        owner: '1000'
+        group: '1000'
+        mode: '0400'
+      register: app_config
+      no_log: true
+
+    - name: Install Docker Compose configuration
+      ansible.builtin.template:
+        src: templates/compose.yaml.j2
+        dest: "{{ vikunja_dir }}/compose.yaml"
+        mode: '0644'
+
+    - name: Validate Docker Compose configuration
+      ansible.builtin.command: docker compose config --quiet
+      args:
+        chdir: "{{ vikunja_dir }}"
+      changed_when: false
+
+    - name: Start Vikunja
+      ansible.builtin.command:
+        argv: "{{ ['docker', 'compose', 'up', '-d', '--pull', 'missing'] + (['--force-recreate'] if app_config.changed else []) }}"
+      args:
+        chdir: "{{ vikunja_dir }}"
+      register: compose_start
+      changed_when: "'Started' in compose_start.stderr or 'Created' in compose_start.stderr or 'Recreated' in compose_start.stderr"
+
+    - name: Install Vulcan Caddy site
+      ansible.builtin.template:
+        src: templates/vulcan.caddy.j2
+        dest: /opt/caddy/sites-enabled/vulcan.caddy
+        mode: '0644'
+      register: caddy_site
+
+    - name: Validate shared Caddy configuration
+      ansible.builtin.command: docker exec app-caddy-1 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      changed_when: false
+
+    - name: Reload shared Caddy configuration
+      ansible.builtin.command: docker exec app-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+      when: caddy_site.changed
+
+    - name: Verify public HTTPS health endpoint
+      ansible.builtin.uri:
+        url: "https://{{ vikunja_domain }}/api/v2/health"
+        status_code: 200
+      register: app_health
+      retries: 12
+      delay: 5
+      until: app_health.status == 200
+
+    - name: Verify Pocket ID is advertised and local login is disabled
+      ansible.builtin.uri:
+        url: "https://{{ vikunja_domain }}/api/v1/info"
+        return_content: true
+      register: app_info
+
+    - name: Assert advertised authentication configuration
+      ansible.builtin.assert:
+        that:
+          - not app_info.json.auth.local.enabled
+          - app_info.json.auth.openid_connect.enabled
+          - app_info.json.auth.openid_connect.providers | selectattr('key', 'equalto', 'pocketid') | list | length == 1

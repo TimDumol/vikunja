@@ -16,3 +16,11 @@ docker-manifest-unstable.tmpl
 /frontend/node_modules/
 /frontend/.direnv
 /frontend/dist
+
+# Local credentials and repository metadata
+.git
+.env
+.env.*
+.aws/
+secrets/
+deploy/ansible/

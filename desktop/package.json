@@ -28,7 +28,9 @@
     "icon": "build/icon.icns",
     "protocols": {
       "name": "Vikunja Desktop",
-      "schemes": ["vikunja-desktop"]
+      "schemes": [
+        "vikunja-desktop"
+      ]
     },
     "linux": {
       "target": [
@@ -62,7 +64,7 @@
     }
   },
   "devDependencies": {
-    "electron": "43.7.0",
+    "electron": "43.8.1",
     "electron-builder": "26.15.3",
     "unzipper": "0.12.5"
   },

@@ -1,0 +1,23 @@
+service:
+  publicurl: https://{{ vikunja_domain }}/
+  secret: {{ vikunja_secrets.service | to_json }}
+  enableregistration: false
+  timezone: Europe/Madrid
+database:
+  type: sqlite
+  path: /db/vikunja.db
+  maxopenconnections: 1
+  maxidleconnections: 1
+auth:
+  local:
+    enabled: false
+  openid:
+    enabled: true
+    providers:
+      pocketid:
+        name: Pocket ID
+        authurl: {{ pocket_id_url }}
+        clientid: {{ pocket_id_client }}
+        clientsecret: {{ vikunja_secrets.oidc | to_json }}
+        scope: openid profile email
+        forceuserinfo: false

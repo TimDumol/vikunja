@@ -55,3 +55,6 @@ PLAN.md
 plans/
 /.crush/
 /.playwright-mcp
+
+# Local deployment credentials
+/.env
