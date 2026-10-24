@@ -15,6 +15,10 @@ This is a dependency and deployment review, not a comprehensive penetration test
   and Zod 4 through pnpm overrides.
 - Updated desktop Electron to 43.8.1, body-parser to 2.4.0, undici to
   8.12.2 and fast-uri to 4.2.3. The desktop audit reports zero advisories.
+- Font generation requires Python Brotli >=1.2.1 before processing fonts;
+  an already installed older version no longer bypasses the install check.
+  Python Brotli is not installed in the current mise environment. Nix tooling
+  versions were not rebuilt or independently validated in this session.
 - Excluded local credentials and git metadata from Docker build contexts;
   ignored the local root .env in git.
 - Enabled a read-only application container root with a bounded, non-executable
@@ -55,3 +59,8 @@ Logs are retained under /tmp/vikunja-*. Production deployment additionally
 requires a stopped-service backup, isolated image health check, Compose and
 Caddy validation, public health/authentication checks, and frontend asset
 checksum verification. Interactive Pocket ID passkey login requires a user.
+
+Validation completed: 2,724 unit tests, seven quick-add/editor Playwright checks,
+backend web tests, frontend typecheck, JS/style lint, production frontend/static
+API builds, and Ansible syntax checks passed. JS lint reports existing warnings.
+Root and veans Go scans report no reachable known vulnerabilities.

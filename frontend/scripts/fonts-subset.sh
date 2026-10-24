@@ -136,12 +136,12 @@ else
 	echo "pyftsubset already available"
 fi
 
-# Check if brotli is available
-if ! python3 -c "import brotli" >/dev/null 2>&1; then
-	echo "brotli not found, installing..."
-	pip install brotli
+# Require the CVE-2026-111497 fix before processing font data.
+if ! python3 -c "from importlib.metadata import version; assert tuple(map(int, version('brotli').split('.'))) >= (1, 2, 1)" >/dev/null 2>&1; then
+	echo "Patched brotli not found, installing brotli >= 1.2.1..."
+	python3 -m pip install --upgrade 'brotli>=1.2.1'
 else
-	echo "brotli already available"
+	echo "Patched brotli already available"
 fi
 
 echo ""
